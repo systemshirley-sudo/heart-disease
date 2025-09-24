@@ -1,14 +1,15 @@
+# app.py
 import streamlit as st
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 import plotly.express as px
-from openai import OpenAI
+import openai
 
 # -------------------------------
-# OpenAI Client (using secrets)
+# Set OpenAI API key (from Streamlit secrets)
 # -------------------------------
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 # -------------------------------
 # App Configuration
@@ -140,10 +141,12 @@ elif page == "💬 Chat with AI":
             st.markdown(user_input)
 
         try:
-            response = client.chat.completions.create(
+            response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
-                messages=[{"role": "system", "content": "You are a helpful AI health and lifestyle assistant."},
-                          *[{"role": role, "content": msg} for role, msg in st.session_state.chat_history]]
+                messages=[
+                    {"role": "system", "content": "You are a helpful AI health and lifestyle assistant."},
+                    *[{"role": role, "content": msg} for role, msg in st.session_state.chat_history]
+                ]
             )
             ai_reply = response.choices[0].message.content
             st.session_state.chat_history.append(("assistant", ai_reply))
@@ -151,5 +154,6 @@ elif page == "💬 Chat with AI":
                 st.markdown(ai_reply)
         except Exception as e:
             st.error(f"⚠️ OpenAI error: {e}")
+
 
 
