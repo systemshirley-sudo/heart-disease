@@ -3,15 +3,15 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 import plotly.express as px
-import openai
+from openai import OpenAI
 
 # -------------------------------
-# OpenAI API Setup
+# OpenAI Client (using secrets)
 # -------------------------------
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # -------------------------------
-# App Config
+# App Configuration
 # -------------------------------
 st.set_page_config(page_title="Lifestyle & Heart Risk Predictor + AI", layout="wide")
 st.title("🩺 Lifestyle & Heart Risk Predictor + 🤖 AI Assistant")
@@ -68,7 +68,7 @@ if page == "🏃 Manual Lifestyle Input":
 
         # Dummy model for demonstration
         X_demo = input_data.copy()
-        y_demo = [1]  # assume high risk
+        y_demo = [1]  # assume high risk for demonstration
         model = RandomForestClassifier(n_estimators=10, random_state=42)
         model.fit(X_demo, y_demo)
         pred = model.predict(input_data)[0]
@@ -76,7 +76,7 @@ if page == "🏃 Manual Lifestyle Input":
         st.subheader("Prediction Result")
         st.write("High Risk ⚠️" if pred==1 else "Low Risk ✅")
 
-        # Lifestyle Tips
+        # Tips
         st.subheader("Lifestyle Tips")
         if pred == 1:
             st.markdown("""
@@ -105,10 +105,6 @@ elif page == "📊 CSV Upload Predictions":
             try:
                 # Take only numeric columns for prediction
                 X = df.select_dtypes(include=np.number)
-                if X.empty:
-                    st.warning(f"No numeric columns found in `{file.name}` to predict.")
-                    continue
-
                 y_dummy = np.random.randint(0,2,len(df))  # dummy target
                 model = RandomForestClassifier(n_estimators=100, random_state=42)
                 model.fit(X, y_dummy)
@@ -134,22 +130,26 @@ elif page == "💬 Chat with AI":
         st.session_state.chat_history = []
 
     for role, msg in st.session_state.chat_history:
-        st.write(f"**{role}:** {msg}")
+        with st.chat_message(role):
+            st.markdown(msg)
 
-    user_input = st.text_input("Type your question:")
+    user_input = st.chat_input("Type your question...")
     if user_input:
         st.session_state.chat_history.append(("user", user_input))
-
-        messages = [{"role":"system","content":"You are a helpful AI health and lifestyle assistant."}]
-        messages += [{"role":r,"content":m} for r,m in st.session_state.chat_history]
+        with st.chat_message("user"):
+            st.markdown(user_input)
 
         try:
-            response = openai.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
-                messages=messages
+                messages=[{"role": "system", "content": "You are a helpful AI health and lifestyle assistant."},
+                          *[{"role": role, "content": msg} for role, msg in st.session_state.chat_history]]
             )
-            ai_reply = response['choices'][0]['message']['content']
+            ai_reply = response.choices[0].message.content
             st.session_state.chat_history.append(("assistant", ai_reply))
+            with st.chat_message("assistant"):
+                st.markdown(ai_reply)
         except Exception as e:
             st.error(f"⚠️ OpenAI error: {e}")
+
 
