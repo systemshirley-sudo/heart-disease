@@ -3,15 +3,15 @@ import pandas as pd
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 import plotly.express as px
-from huggingface_hub import InferenceClient
+import openai
 
 # -------------------------------
-# HuggingFace Client (Free model)
+# OpenAI API Setup
 # -------------------------------
-client = InferenceClient(repo_id="google/flan-t5-small")  # public free model
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 # -------------------------------
-# App Configuration
+# App Config
 # -------------------------------
 st.set_page_config(page_title="Lifestyle & Heart Risk Predictor + AI", layout="wide")
 st.title("🩺 Lifestyle & Heart Risk Predictor + 🤖 AI Assistant")
@@ -76,7 +76,7 @@ if page == "🏃 Manual Lifestyle Input":
         st.subheader("Prediction Result")
         st.write("High Risk ⚠️" if pred==1 else "Low Risk ✅")
 
-        # Tips
+        # Lifestyle Tips
         st.subheader("Lifestyle Tips")
         if pred == 1:
             st.markdown("""
@@ -105,6 +105,10 @@ elif page == "📊 CSV Upload Predictions":
             try:
                 # Take only numeric columns for prediction
                 X = df.select_dtypes(include=np.number)
+                if X.empty:
+                    st.warning(f"No numeric columns found in `{file.name}` to predict.")
+                    continue
+
                 y_dummy = np.random.randint(0,2,len(df))  # dummy target
                 model = RandomForestClassifier(n_estimators=100, random_state=42)
                 model.fit(X, y_dummy)
@@ -130,24 +134,22 @@ elif page == "💬 Chat with AI":
         st.session_state.chat_history = []
 
     for role, msg in st.session_state.chat_history:
-        with st.chat_message(role):
-            st.markdown(msg)
+        st.write(f"**{role}:** {msg}")
 
-    user_input = st.chat_input("Type your question...")
+    user_input = st.text_input("Type your question:")
     if user_input:
         st.session_state.chat_history.append(("user", user_input))
-        with st.chat_message("user"):
-            st.markdown(user_input)
+
+        messages = [{"role":"system","content":"You are a helpful AI health and lifestyle assistant."}]
+        messages += [{"role":r,"content":m} for r,m in st.session_state.chat_history]
 
         try:
-            response = client.text_generation(
-                user_input,
-                max_new_tokens=200
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=messages
             )
-            ai_reply = response.generated_text
+            ai_reply = response['choices'][0]['message']['content']
             st.session_state.chat_history.append(("assistant", ai_reply))
-            with st.chat_message("assistant"):
-                st.markdown(ai_reply)
         except Exception as e:
-            st.error(f"⚠️ HuggingFace error: {e}")
+            st.error(f"⚠️ OpenAI error: {e}")
 
